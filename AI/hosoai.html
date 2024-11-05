@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HỒ SƠ AI </title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            background-color: #f0f0f0;
+        }
+        .column {
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .left-column {
+            flex: 0 0 30%; /* Cột bên trái chiếm 30% không gian */
+            background-color: #ffffff;
+            border-right: 1px solid #ccc;
+            overflow-y: auto; /* Cuộn khi có nhiều hình ảnh */
+        }
+        .right-column {
+            flex: 1; /* Cột bên phải chiếm 70% không gian */
+            background-color: #e9ecef;
+        }
+        #chat-container {
+            height: 80%; /* Thay đổi chiều cao khung chat */
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            overflow-y: auto;
+            background-color: #fff;
+            padding: 10px;
+        }
+        #user-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        #file-input {
+            margin-top: 10px;
+        }
+        #send-button, #delete-button {
+            margin-top: 10px;
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #send-button {
+            background-color: #007bff;
+            color: white;
+        }
+        #send-button:hover {
+            background-color: #0056b3;
+        }
+        #delete-button {
+            background-color: #dc3545;
+            color: white;
+        }
+        #delete-button:hover {
+            background-color: #c82333;
+        }
+        .message {
+            margin: 5px 0;
+            padding: 8px;
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+        }
+        .user-message {
+            background-color: #d1e7dd;
+            text-align: right;
+        }
+        .ai-message {
+            background-color: #cfe2ff;
+        }
+        .image-preview {
+            margin-top: 5px;
+            max-width: 50%; /* Kích thước ảnh nhỏ hơn */
+            border-radius: 4px;
+            height: auto; /* Tự động điều chỉnh chiều cao */
+            max-height: 80px; /* Giới hạn chiều cao của ảnh */
+        }
+        /* Thêm CSS cho text area */
+        #note-area {
+            width: 95%;
+            height: 300px; /* Chiều cao cho text area */
+            margin-top: 10px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            resize: none; /* Không cho phép người dùng thay đổi kích thước */
+        }
+        /* Căn chỉnh và tạo kiểu cho các nút */
+button {
+    background-color: #4CAF50; /* Màu nền xanh lá cây */
+    color: white; /* Màu chữ trắng */
+    padding: 10px 20px; /* Khoảng cách trong nút */
+    margin: 5px 0; /* Khoảng cách ngoài nút */
+    border: none; /* Không viền */
+    border-radius: 5px; /* Bo tròn góc */
+    cursor: pointer; /* Con trỏ khi hover */
+    font-size: 16px; /* Kích thước chữ */
+    transition: background-color 0.3s ease; /* Hiệu ứng chuyển màu */
+}
+
+/* Hiệu ứng khi di chuột vào nút */
+button:hover {
+    background-color: #45a049; /* Màu nền khi hover */
+}
+
+/* Kiểu cho nút khi bị vô hiệu hóa */
+button:disabled {
+    background-color: #ddd; /* Màu nền khi vô hiệu hóa */
+    color: #888; /* Màu chữ khi vô hiệu hóa */
+    cursor: not-allowed; /* Con trỏ khi bị vô hiệu hóa */
+}
+
+    </style>
+</head>
+<body>
+    <div class="column left-column">
+        <h2>TÀI NGUYÊN LƯU TRỮ</h2>
+        <input type="file" id="file-input" accept="image/*" multiple>
+        <div id="image-preview-container"></div>
+        <button id="send-button" disabled>Gửi Ảnh</button>
+        <button id="delete-button" disabled>Xóa Ảnh</button>
+        <h3>Ghi chú </h3>
+        <textarea id="note-area" placeholder="Ghi chú các thí sinh bạn muốn chọn..."></textarea>
+        <button id="download-note-button">Tải Ghi Chú</button>
+    </div>
+    <div class="column right-column">
+        <h2>Chatbot</h2>
+        <div id="chat-container"></div>
+        <input type="text" id="user-input" placeholder="Nhập tin nhắn...">
+    </div>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "@google/generative-ai": "https://esm.run/@google/generative-ai"
+        }
+      }
+    </script>
+    <script type="module">
+      import { GoogleGenerativeAI } from "@google/generative-ai";
+
+      // Nhập API_KEY của bạn
+      const API_KEY = "AIzaSyAAntIUN_s_XdkHtzaTU5MydR0zSyLJngI"; // Nhớ không công khai key này trong mã sản phẩm
+      const genAI = new GoogleGenerativeAI(API_KEY);
+      const model = genAI.getGenerativeModel({
+          model: "gemini-1.5-flash",
+          systemInstruction: "Bạn là 1 AI giúp nhà tuyển dụng chọn lọc hồ sơ và tìm kiếm ứng viên phù hợp. Lưu ý: Chỉ phản hồi dạng văn bản, không bao giờ phản hồi ký tự đặc biệt như # *-."
+      });
+      const chatContainer = document.getElementById('chat-container');
+      const userInput = document.getElementById('user-input');
+      const fileInputEl = document.getElementById('file-input');
+      const sendButton = document.getElementById('send-button');
+      const deleteButton = document.getElementById('delete-button');
+      const imagePreviewContainer = document.getElementById('image-preview-container');
+      const noteArea = document.getElementById('note-area'); // Lấy phần text area
+
+      let selectedImages = []; // Biến để lưu trữ hình ảnh đã chọn
+      let messageHistory = []; // Biến để lưu trữ lịch sử trò chuyện
+
+      // Hàm thêm tin nhắn vào khung chat
+      function addMessage(content, type, images = []) {
+          const messageDiv = document.createElement('div');
+          messageDiv.className = `message ${type}-message`;
+          
+          // Thêm nội dung tin nhắn
+          const textNode = document.createElement('span');
+          textNode.textContent = content;
+          messageDiv.appendChild(textNode);
+
+          // Thêm hình ảnh nếu có
+          images.forEach(image => {
+              const img = document.createElement('img');
+              img.src = image;
+              img.className = 'image-preview';
+              messageDiv.appendChild(img);
+          });
+
+          chatContainer.appendChild(messageDiv);
+          chatContainer.scrollTop = chatContainer.scrollHeight; // Cuộn xuống tin nhắn mới
+      }
+
+      // Hàm xử lý hình ảnh tải lên
+      fileInputEl.addEventListener('change', (event) => {
+          const files = event.target.files;
+          selectedImages = [...files]; // Lưu trữ các file đã chọn
+          imagePreviewContainer.innerHTML = ''; // Xóa nội dung trước đó
+
+          // Hiển thị hình ảnh đã chọn
+          for (const file of selectedImages) {
+              const img = document.createElement('img');
+              img.src = URL.createObjectURL(file);
+              img.className = 'image-preview'; // Áp dụng class mới cho kích thước nhỏ
+              imagePreviewContainer.appendChild(img);
+          }
+
+          sendButton.disabled = selectedImages.length === 0; // Kích hoạt nút "Gửi" nếu có hình ảnh
+          deleteButton.disabled = selectedImages.length === 0; // Kích hoạt nút "Xóa" nếu có hình ảnh
+      });
+
+      // Hàm gửi ảnh lên cho chatbot
+      sendButton.addEventListener('click', async () => {
+          if (selectedImages.length > 0) {
+              const prompt = "Hãy phân tích và so sánh hai CV này và cho biết tôi nên chọn ai?";
+              addMessage(prompt, 'user', selectedImages.map(file => URL.createObjectURL(file))); // Hiển thị ảnh đã gửi
+
+              const imageParts = await Promise.all(selectedImages.map(fileToGenerativePart));
+
+              const result = await model.generateContent([prompt, ...imageParts]);
+              const response = await result.response;
+              const text = await response.text();
+
+              // Thêm phản hồi của AI vào khung chat
+              addMessage(text, 'AI:');
+
+              // Lưu lịch sử trò chuyện
+              messageHistory.push({ user: prompt, ai: text });
+
+              // Xóa hình ảnh đã gửi và hủy kích hoạt nút "Gửi"
+              imagePreviewContainer.innerHTML = '';
+              selectedImages = [];
+              sendButton.disabled = true;
+              deleteButton.disabled = true; // Vô hiệu hóa nút "Xóa" sau khi gửi
+          }
+      });
+
+      // Hàm xóa hình ảnh đã chọn
+      deleteButton.addEventListener('click', () => {
+          imagePreviewContainer.innerHTML = ''; // Xóa hình ảnh đã chọn
+          selectedImages = []; // Đặt lại danh sách hình ảnh đã chọn
+          sendButton.disabled = true; // Vô hiệu hóa nút "Gửi"
+          deleteButton.disabled = true; // Vô hiệu hóa nút "Xóa"
+      });
+
+      // Hàm chuyển đổi File thành GenerativeAI.Part
+      async function fileToGenerativePart(file) {
+          const base64EncodedDataPromise = new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result.split(',')[1]);
+              reader.readAsDataURL(file);
+          });
+          return {
+              inlineData: { data: await base64EncodedDataPromise, mimeType: file.type },
+          };
+      }
+      // Hàm xử lý khi người dùng gửi tin nhắn
+      userInput.addEventListener('keypress', async (event) => {
+          if (event.key === 'Enter') {
+              const userMessage = userInput.value;
+              addMessage(userMessage, 'user');4
+              userInput.value = '';
+              // Tạo prompt từ lịch sử trò chuyện
+              const context = messageHistory.map(msg => `User: ${msg.user}\nAI: ${msg.ai}`).join('\n');
+              const prompt = `${context}\nUser: ${userMessage}\nAI:`;
+              // Gửi yêu cầu tới mô hình AI
+              const result = await model.generateContent([prompt]);
+              const response = await result.response;
+              const text = await response.text();
+              // Thêm phản hồi của AI vào khung chat
+              addMessage(text, 'ai');
+              // Lưu lịch sử trò chuyện
+              messageHistory.push({ user: userMessage, ai: text })
+          }
+      });
+      document.getElementById('download-note-button').addEventListener('click', function() {
+        // Lấy nội dung từ vùng ghi chú
+        const noteContent = document.getElementById('note-area').value;
+        
+        // Tạo file văn bản
+        const blob = new Blob([noteContent], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        
+        // Tạo thẻ a để tải file
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'ghi_chu.txt'; // Tên file ghi chú
+        document.body.appendChild(link);
+        link.click();
+        
+        // Xóa thẻ và url blob sau khi tải xong
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    });
+    </script>
+</body>
+</html>

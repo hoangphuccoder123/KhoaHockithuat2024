@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chatbot Tư Vấn Nghề Nghiệp</title>
+  <style>
+    /* Bố cục trang với tỷ lệ 7/3 cho hai cột */
+    body {
+      display: flex;
+      font-family: Arial, sans-serif;
+      margin: 0;
+      height: 100vh;
+    }
+
+    /* Cột trò chuyện */
+    .chat-column {
+      flex: 7;
+      display: flex;
+      flex-direction: column;
+      border-right: 2px solid #e0e0e0;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    /* Khu vực hiển thị tin nhắn */
+    #chatbox {
+      flex: 1;
+      overflow-y: auto;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 10px;
+      background-color: #f9f9f9;
+    }
+
+    /* Khung nhập tin nhắn */
+    .input-container {
+      display: flex;
+      gap: 10px;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+
+    button {
+      padding: 8px 12px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    /* Cột tra cứu */
+    .search-column {
+      flex: 3;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    /* Khu vực tra cứu */
+    .search-box {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 10px;
+      background-color: #f9f9f9;
+    }
+
+    /* Giao diện thẻ kết quả tra cứu */
+    .search-results {
+      margin-top: 10px;
+      border-top: 1px solid #ddd;
+      padding-top: 10px;
+    }
+
+    .search-results p {
+      margin: 5px 0;
+    }
+  </style>
+</head>
+<body>
+  <!-- Cột Chatbot -->
+  <div class="chat-column">
+    <h2>Chatbot Tư Vấn Nghề Nghiệp</h2>
+    <div id="chatbox"></div>
+    <div class="input-container">
+      <input type="text" id="userMessage" placeholder="Nhập câu hỏi về nghề nghiệp...">
+      <button id="send">Gửi</button>
+    </div>
+  </div>
+
+  <!-- Cột Tra Cứu -->
+  <div class="search-column">
+    <h2>Khu vực Tra Cứu</h2>
+    <div class="search-box">
+      <input type="text" id="searchQuery" placeholder="Nhập từ khóa để tra cứu...">
+      <button id="search">Tra cứu</button>
+      <div class="search-results" id="searchResults">
+        <p><em>Nhập từ khóa và nhấn "Tra cứu" để tìm kiếm thông tin.</em></p>
+      </div>
+    </div>
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "@google/generative-ai": "https://esm.run/@google/generative-ai"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import { GoogleGenerativeAI } from "@google/generative-ai";
+
+    const API_KEY = 'AIzaSyAAntIUN_s_XdkHtzaTU5MydR0zSyLJngI'; // Thay thế bằng API key của bạn
+    const sheetsApiKey = 'AIzaSyB4hN-MhE5rmVM9Q_Ak4x2QkrXAI29-4e8'; // API key Google Sheets của bạn
+    const sheetId = '13s4nVD87Gk2xEkg_GsXcsbq7Q3IZx7f_nkQyvYKLgNk'; // ID Google Sheet chứa dữ liệu nghề nghiệp
+    const range = 'html data'; // Tên sheet chứa dữ liệu
+    const genAI = new GoogleGenerativeAI(API_KEY);
+
+    // Hàm lấy dữ liệu nghề nghiệp từ Google Sheets
+    async function fetchJobDataFromSheet() {
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}?key=${sheetsApiKey}`;
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Lỗi khi lấy dữ liệu: ${response.statusText}`);
+        }
+        const data = await response.json();
+        return data.values || []; // Dữ liệu dạng [[câu hỏi, câu trả lời], ...]
+      } catch (error) {
+        console.error("Có lỗi xảy ra:", error);
+        return [];
+      }
+    }
+
+    // Hàm lưu dữ liệu vào Google Sheets
+    async function saveDataToGoogleSheet(data) {
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}:append?valueInputOption=USER_ENTERED&key=${sheetsApiKey}`;
+      const body = {
+        values: [data],
+      };
+
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Lỗi khi lưu dữ liệu: ${response.statusText}`);
+        }
+        console.log("Dữ liệu đã được lưu vào Google Sheet.");
+      } catch (error) {
+        console.error("Có lỗi xảy ra:", error);
+      }
+    }
+
+    async function setupChat() {
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const chat = model.startChat({
+        history: [
+          { role: "user", parts: [{ text: "Xin chào! Tôi muốn biết về các ngành nghề." }] },
+        ],
+        generationConfig: { maxOutputTokens: 100 },
+      });
+
+      const jobData = await fetchJobDataFromSheet();
+
+      document.getElementById("send").addEventListener("click", async () => {
+        const userMessage = document.getElementById("userMessage").value;
+        document.getElementById("chatbox").innerHTML += `<p><strong>Bạn:</strong> ${userMessage}</p>`;
+        document.getElementById("userMessage").value = '';
+
+        // Tìm câu trả lời từ Google Sheets
+        let responseText = jobData.find(([question]) => userMessage.includes(question))?.[1];
+
+        // Nếu không có câu trả lời từ Google Sheets, sử dụng AI
+        if (!responseText) {
+          const result = await chat.sendMessage(userMessage);
+          const response = await result.response;
+          responseText = response.text();
+        }
+
+        // Hiển thị câu trả lời
+        document.getElementById("chatbox").innerHTML += `<p><strong>Bot:</strong> ${responseText}</p>`;
+        document.getElementById("chatbox").scrollTop = document.getElementById("chatbox").scrollHeight;
+
+        // Lưu dữ liệu câu hỏi và câu trả lời vào Google Sheets
+        await saveDataToGoogleSheet([userMessage, responseText]);
+      });
+    }
+
+    setupChat();
+
+    // Giả lập chức năng tra cứu
+    document.getElementById("search").addEventListener("click", () => {
+      const query = document.getElementById("searchQuery").value;
+      if (query.trim()) {
+        document.getElementById("searchResults").innerHTML = `
+          <p><strong>Kết quả tìm kiếm cho:</strong> "${query}"</p>
+          <p><a href="https://www.google.com/search?q=${encodeURIComponent(query)}" target="_blank">Xem trên Google</a></p>
+        `;
+      } else {
+        document.getElementById("searchResults").innerHTML = `<p>Vui lòng nhập từ khóa.</p>`;
+      }
+    });
+  </script>
+</body>
+</html>
